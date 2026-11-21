@@ -423,7 +423,7 @@ namespace Stride.Graphics
             DrawBatchPerTextureAndPass(sprites, offset, count);
         }
 
-        private void DrawBatchPerTextureAndPass(ElementInfo[] sprites, int offset, int count)
+        private protected virtual void DrawBatchPerTextureAndPass(ElementInfo[] sprites, int offset, int count)
         {
             ResourceContext.VertexBufferPosition = ResourceContext.VertexCount;
             ResourceContext.IndexBufferPosition = ResourceContext.IndexCount;

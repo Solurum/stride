@@ -480,6 +480,77 @@ namespace Stride.Graphics
             font.InternalUIDraw(GraphicsContext.CommandList, ref proxy, ref drawCommand);
         }
 
+#if STRIDE_GRAPHICS_API_DIRECT3D11
+        // The immediate context can append geometry for successive UI clips and textures.
+        // Discard on wrap so the driver can retain the old contents until its draws finish.
+        private Buffer streamingVertices;
+        private Buffer streamingIndices;
+        private int nextVertex;
+        private int nextIndex;
+
+        private protected override void DrawBatchPerTextureAndPass(ElementInfo[] sprites, int offset, int count)
+        {
+            var commands = GraphicsContext.CommandList;
+            var stride = VertexPositionColorTextureSwizzle.Size;
+            streamingVertices ??= Buffer.New(graphicsDevice, new BufferDescription(MaxVerticesCount * stride,
+                BufferFlags.VertexBuffer, GraphicsResourceUsage.Dynamic));
+            streamingIndices ??= Buffer.New(graphicsDevice, new BufferDescription(MaxIndicesCount * sizeof(short),
+                BufferFlags.IndexBuffer, GraphicsResourceUsage.Dynamic));
+            commands.SetVertexBuffer(0, streamingVertices, 0, stride);
+            commands.SetIndexBuffer(streamingIndices, 0, false);
+
+            int end = offset + count;
+            while (offset < end)
+            {
+                ref var first = ref sprites[offset];
+                if (nextVertex + first.VertexCount > MaxVerticesCount || nextIndex + first.IndexCount > MaxIndicesCount)
+                {
+                    nextVertex = 0;
+                    nextIndex = 0;
+                }
+                var mode = nextVertex == 0 ? MapMode.WriteDiscard : MapMode.WriteNoOverwrite;
+                int start = offset, vertices = 0, indices = 0;
+                while (offset < end && nextVertex + vertices + sprites[offset].VertexCount <= MaxVerticesCount
+                    && nextIndex + indices + sprites[offset].IndexCount <= MaxIndicesCount)
+                {
+                    vertices += sprites[offset].VertexCount;
+                    indices += sprites[offset++].IndexCount;
+                }
+
+                var vb = commands.MapSubresource(streamingVertices, 0, mode, false, nextVertex * stride, vertices * stride);
+                try
+                {
+                    var ib = commands.MapSubresource(streamingIndices, 0, mode, false, nextIndex * sizeof(short), indices * sizeof(short));
+                    try
+                    {
+                        var vp = vb.DataBox.DataPointer;
+                        var ip = ib.DataBox.DataPointer;
+                        for (int i = start; i < offset; i++)
+                        {
+                            ref var element = ref sprites[i];
+                            UpdateBufferValuesFromElementInfo(ref element, vp, ip, nextVertex);
+                            nextVertex += element.VertexCount;
+                            vp += element.VertexCount * stride;
+                            ip += element.IndexCount * sizeof(short);
+                        }
+                    }
+                    finally { commands.UnmapSubresource(ib); }
+                }
+                finally { commands.UnmapSubresource(vb); }
+
+                commands.DrawIndexed(indices, nextIndex);
+                nextIndex += indices;
+            }
+        }
+
+        protected override void Destroy()
+        {
+            streamingVertices?.Dispose();
+            streamingIndices?.Dispose();
+            base.Destroy();
+        }
+#endif
+
         protected override unsafe void UpdateBufferValuesFromElementInfo(ref ElementInfo elementInfo, IntPtr vertexPtr, IntPtr indexPtr, int vertexOffset)
         {
             // the vertex buffer
