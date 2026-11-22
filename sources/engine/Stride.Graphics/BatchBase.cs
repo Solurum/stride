@@ -93,7 +93,7 @@ namespace Stride.Graphics
         private Texture[] drawTextures;
         private List<Buffer> lastFrameBuffers;
 
-        private readonly int vertexStructSize;
+        private protected readonly int vertexStructSize;
         private readonly int indexStructSize;
 
         /// <summary>

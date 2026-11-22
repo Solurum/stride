@@ -491,7 +491,7 @@ namespace Stride.Graphics
         private protected override void DrawBatchPerTextureAndPass(ElementInfo[] sprites, int offset, int count)
         {
             var commands = GraphicsContext.CommandList;
-            var stride = VertexPositionColorTextureSwizzle.Size;
+            var stride = vertexStructSize;
             streamingVertices ??= Buffer.New(graphicsDevice, new BufferDescription(MaxVerticesCount * stride,
                 BufferFlags.VertexBuffer, GraphicsResourceUsage.Dynamic));
             streamingIndices ??= Buffer.New(graphicsDevice, new BufferDescription(MaxIndicesCount * sizeof(short),
